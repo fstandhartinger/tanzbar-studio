@@ -24,10 +24,20 @@ The repository is already cloned in `./repo` (your working directory is the job 
 **Conversation (speech recognition, so expect small transcription errors):**
 {{TRANSCRIPT}}
 
+## Material from Michi
+
+Files are in `{{JOBDIR}}/attachments/` (Michi uploaded them himself; they are his to use):
+{{ATTACHMENTS}}
+
+Use the material as the work instruction says. Photos for the site: copy them into `repo/assets/img/` with a clear name,
+resize to at most 1600 px on the long side and compress (JPEG quality ~82 or WebP; use python3 PIL, ffmpeg or whatever is
+installed). Never publish anything from the attachments folder that the instruction does not ask for.
+
 ## How the site is built (read `repo/README.md` first)
 
-- `index.html` is the live start page, a copy of one design variant (`varianten/NN/index.html`) without the variant bar.
-  The variant marked LIVE in `varianten/index.html` is the one in use.
+- `index.html` is the live start page, a copy of one design variant (`varianten/NN/index.html`) without the variant bar and
+  without the "Varianten" menu link. Currently variant 10 "Afterhour" (Michi's choice). The variants stay reachable at
+  /varianten/ but must not be linked from the live page's menu.
 - `varianten/01..10/` are ten full design variants with the same content; `varianten/index.html` is their overview.
 - `assets/mm.js` holds the set list (SoundCloud track ids), the click-to-load players and the variant bar. `assets/base.css`
   is shared; each page has its own `<style>`. Fonts and images are self-hosted under `assets/`.
@@ -82,7 +92,7 @@ Good milestones: understood the request / building it / checking on phone and de
 1. Commit in `repo` on `main` with a clear message (English) ending with `Requested-by: Michi via tanzbar-studio ({{ID}})`.
 2. Write `{{JOBDIR}}/RESULT.json`:
    ```json
-   {"ok": true, "summary_for_michi": "2-3 short German sentences in du-form: what is new on the site and where to find it.", "commit": "<sha>"}
+   {"ok": true, "summary_for_michi": "2-3 short German sentences in du-form: what is new on the site and where to find it.", "version_label": "German, max 8 words, what this version changed (shown in Michi's version list)", "commit": "<sha>"}
    ```
    If you could not do it: `{"ok": false, "reason_for_michi": "1-2 short German sentences, plain words"}`.
 3. Write a short `{{JOBDIR}}/RESULT.md` for Florian (English): what changed, files, checks run, anything left open.
