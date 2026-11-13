@@ -35,4 +35,4 @@ Operations:
 - Clear the conversation and show the first-visit intro again: `python3 ~/tanzbar-studio-runner/reset-feed.py` (Sandy).
 - Rotate the link: delete `link.txt`, run `set_env.py STUDIO_TOKEN_SHA256` (it creates a new token), redeploy the app,
   send the new link.
-- Restore points start at commit 5e54b4a (first version with the studio); older trees would lock the studio out.
+- Restore points start at Michi's start version (6fd0857, 13 Nov 2026, after Florian's tests); older versions are not offered.

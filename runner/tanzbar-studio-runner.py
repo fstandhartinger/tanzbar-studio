@@ -35,7 +35,7 @@ MIRROR = os.path.join(HERE, 'mirror')
 REPO_URL = 'https://github.com/fstandhartinger/diskret-tanzbar'
 RENDER_SERVICE = 'srv-d654b4e3li6c73995tbg'
 SITE = 'https://diskret-tanzbar.de'
-STUDIO_BASE = '5e54b4a'  # first commit with the studio; older versions cannot be restored (they would lock the studio out)
+STUDIO_BASE = '6fd0857'  # Michi's start version (13 Nov 2026, after Florian's tests); older versions are not offered or restored
 LOADER = ("\n  // Studio loader: the private voice studio opens only through the secret link (#studio=...). Keep this block.\n"
           "  if (/^#studio=[\\w-]{20,}$/.test(location.hash)) import('/assets/studio/studio.js').catch(() => {});\n")
 POLL = 4
@@ -532,8 +532,7 @@ def main():
     if not SECRET:
         sys.exit('RUNNER_SECRET missing')
     st = load()
-    st['labels'].setdefault('5e54b4a', 'Design „Beton“ als Startseite, Studio eingebaut')
-    st['labels'].setdefault('7b6f9f4', 'Design „Afterhour“ (Nr. 10) als Startseite, Varianten raus aus dem Menü')
+    st['labels'].setdefault(STUDIO_BASE, 'Startversion: Design „Afterhour“')
     log('runner up', API)
     while True:
         try:
