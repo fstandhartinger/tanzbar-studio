@@ -41,7 +41,7 @@ installed). Never publish anything from the attachments folder that the instruct
 - `varianten/01..10/` are ten full design variants with the same content; `varianten/index.html` is their overview.
 - `assets/mm.js` holds the set list (SoundCloud track ids), the click-to-load players and the variant bar. `assets/base.css`
   is shared; each page has its own `<style>`. Fonts and images are self-hosted under `assets/`.
-- `privacy.html` and `analytics.js` belong to the privacy setup; `tests/` runs with `node --test tests/`.
+- `privacy.html` and `analytics.js` belong to the privacy setup; `tests/` runs with `node --test tests/*.cjs` (Node 24 no longer accepts the bare directory).
 
 ## Scope rules
 
@@ -64,7 +64,8 @@ installed). Never publish anything from the attachments folder that the instruct
 - If the request (or a part of it) is illegal, offensive, would break the site, or reaches outside this repository, do not do
   that part, and explain it in plain words in the summary.
 - Only this repository. No other repos, no servers, no deploy commands, no messages to anyone (no notify, board, Telegram,
-  mail). Do NOT push: commit locally only. The runner on Sandy pushes and publishes after you finish.
+  mail). Do NOT commit or push: this job may run on LeChonk, where `repo/` has no `.git` (the job sync excludes it). Just leave
+  your edits in the working tree; the runner on Sandy commits, pushes and publishes them after you finish.
 
 ## Progress for Michi
 
@@ -78,23 +79,31 @@ echo "Ich schaue mir deine Seite an" >> {{JOBDIR}}/PROGRESS.md
 Good milestones: understood the request / building it / checking on phone and desktop / done, now it goes online.
 4 to 7 lines in total.
 
-## Verify before you commit
+## Verify before you finish
 
-1. `cd repo && node --test tests/` passes (update tests only when the change makes an assertion outdated on purpose).
+1. `cd repo && node --test tests/*.cjs` passes (update tests only when the change makes an assertion outdated on purpose).
 2. Serve locally (`python3 -m http.server 8xxx --bind 127.0.0.1` from `repo/`, pick a free port) and check the changed pages
-   with a headless browser (Playwright; Chromium lives under `~/.cache/ms-playwright/`). Take screenshots at 1440x900 and
-   390x844 and look at them yourself: the change is there, nothing overlaps, no horizontal overflow
-   (`document.documentElement.scrollWidth <= innerWidth`), no console errors. Stop the server afterwards.
-3. `git -C repo status` shows only intended changes.
+   with a headless browser (Playwright). Chromium: on LeChonk use
+   `/srv/heavy/tools/ms-playwright/chromium_headless_shell-1234/chrome-linux/headless_shell` or any
+   `chrome-headless-shell` under `~/.cache/ms-playwright/chromium_headless_shell-*/`. Take screenshots at 1440x900 and
+   390x844 into `{{JOBDIR}}/shots/` (never into `repo/`) and look at them yourself: the change is there, nothing overlaps,
+   no horizontal overflow (`document.documentElement.scrollWidth <= innerWidth`), no console errors. Stop the server.
+3. Compare with a fresh clone if you want a diff (`git clone https://github.com/fstandhartinger/diskret-tanzbar /tmp/x`,
+   public read access may fail: then compare with your own notes). Leave no temp files inside `repo/`.
 
-## Finish
+## Finish (no commit)
 
-1. Commit in `repo` on `main` with a clear message (English) ending with `Requested-by: Michi via tanzbar-studio ({{ID}})`.
-2. Write `{{JOBDIR}}/RESULT.json`:
+1. Leave the edits in `repo/`. If you deleted files, list them (the sync back to Sandy does not carry deletions).
+2. Write `{{JOBDIR}}/COMMIT_MSG.txt`: a clear English commit message (subject line, optional body) ending with
+   `Requested-by: Michi via tanzbar-studio ({{ID}})`.
+3. Write `{{JOBDIR}}/RESULT.json`:
    ```json
-   {"ok": true, "summary_for_michi": "2-3 short German sentences in du-form: what is new on the site and where to find it.", "version_label": "German, max 8 words, what this version changed (shown in Michi's version list)", "commit": "<sha>"}
+   {"ok": true, "changed_files": ["index.html"], "deleted_files": [], "no_changes": false,
+    "summary_for_michi": "2-3 short German sentences in du-form: what is new on the site and where to find it.",
+    "version_label": "German, max 8 words, what this version changed (shown in Michi's version list)"}
    ```
+   `no_changes: true` only when the request needed no change at all (e.g. a pure check).
    If you could not do it: `{"ok": false, "reason_for_michi": "1-2 short German sentences, plain words"}`.
-3. Write a short `{{JOBDIR}}/RESULT.md` for Florian (English): what changed, files, checks run, anything left open.
+4. Write a short `{{JOBDIR}}/RESULT.md` for Florian (English): what changed, files, checks run, anything left open.
 
 Aim to be done within 20 minutes. Quality over speed.

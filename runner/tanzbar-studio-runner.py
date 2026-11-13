@@ -312,15 +312,38 @@ def finish_run(job, st):
         return fail(job, str(res.get('reason_for_michi') or 'Der Agent ist nicht fertig geworden.')[:300])
     job['summary'] = str(res.get('summary_for_michi') or '')[:600]
     job['labelForCommit'] = str(res.get('version_label') or job['title'])[:100]
-    publish(job, st, os.path.join(job['dir'], 'repo'))
+    repo = os.path.join(job['dir'], 'repo')
+    # On LeChonk the job has no .git (lechonk-job excludes it) and the sync back carries no deletions:
+    # the runner applies deletions and commits the synced working tree here on Sandy.
+    for f in res.get('deleted_files') or []:
+        p = os.path.normpath(os.path.join(repo, str(f)))
+        if p.startswith(repo + os.sep) and '/.git' not in p and os.path.isfile(p) and not str(f).startswith('assets/studio/'):
+            os.remove(p)
+    sh(['git', '-C', repo, 'checkout', '--', 'assets/studio'])  # the studio itself is never changed by a request
+    rc, dirty = sh(['git', '-C', repo, 'status', '--porcelain'])
+    if dirty.strip():
+        msg_file = os.path.join(job['dir'], 'COMMIT_MSG.txt')
+        msg = open(msg_file).read().strip() if os.path.exists(msg_file) else f"{job['title']}"
+        if 'Requested-by:' not in msg:
+            msg += f"\n\nRequested-by: Michi via tanzbar-studio ({job['id']})"
+        with open(msg_file + '.final', 'w') as f:
+            f.write(msg + '\n')
+        sh(['git', '-C', repo, 'add', '-A'])
+        rc, out = sh(['git', '-C', repo, 'commit', '-q', '-F', msg_file + '.final'])
+        if rc != 0:
+            return fail(job, 'Die Änderung ließ sich nicht speichern.', out)
+        log('committed', job['id'])
+    publish(job, st, repo, expect_change=not res.get('no_changes'))
 
 
-def publish(job, st, repo):
+def publish(job, st, repo, expect_change=True):
     rc, ahead = sh(['git', '-C', repo, 'log', '--oneline', 'origin/main..HEAD'])
     if rc != 0:
         return fail(job, 'Die Änderung ließ sich nicht prüfen.', ahead)
     if not ahead.strip():
-        return set_status(job, 'live', 'Nichts zu veröffentlichen')
+        if expect_change:
+            return fail(job, 'Die Änderung ist auf dem Server nicht angekommen.')
+        return set_status(job, 'live', 'Keine Änderung nötig')
     set_status(job, 'publishing', 'Wird veröffentlicht')
     rc, out = sh(['git', '-C', repo, 'pull', '--rebase', '--quiet', 'origin', 'main'], timeout=120)
     if rc != 0:
