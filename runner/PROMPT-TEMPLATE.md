@@ -76,7 +76,8 @@ technical words) to `{{JOBDIR}}/PROGRESS.md`, e.g.:
 echo "Ich schaue mir deine Seite an" >> {{JOBDIR}}/PROGRESS.md
 ```
 
-Good milestones: understood the request / building it / checking on phone and desktop / done, now it goes online.
+Good milestones: understood the request / building it / checking on phone and desktop / finished building, handing it over
+for publishing. Never write that it is online already: publishing comes after you, and the runner reports it.
 4 to 7 lines in total.
 
 ## Verify before you finish

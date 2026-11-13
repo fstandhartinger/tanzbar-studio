@@ -360,13 +360,60 @@ def publish(job, st, repo, expect_change=True):
     log('pushed', job['id'], job['commit'])
 
 
+def site_path(f):
+    if f == 'index.html':
+        return '/'
+    if f.endswith('/index.html'):
+        return '/' + f[:-len('index.html')]
+    return '/' + f
+
+
+def fetch(url, timeout=20):
+    with urllib.request.urlopen(urllib.request.Request(url, headers={'user-agent': 'tanzbar-studio-runner', 'accept-encoding': 'identity'}), timeout=timeout) as r:
+        return r.status, r.read()
+
+
+def cdn_has_commit(job):
+    """True when visitors get the new files: the plain URLs (as cached by the CDN, no cache-busting query) serve exactly
+    the committed bytes. Files whose cache-busted fetch differs too (a server-side transform) are not used for the check."""
+    repo = os.path.join(job['dir'], 'repo')
+    rc, files = sh(['git', '-C', repo, 'diff', '--name-only', 'HEAD~1', 'HEAD'])
+    files = [f for f in files.split() if re.search(r'\.(html|js|css|txt|json|svg)$', f) and os.path.isfile(os.path.join(repo, f))][:4]
+    if not files:
+        return True
+    usable = 0
+    for f in files:
+        want = open(os.path.join(repo, f), 'rb').read()
+        try:
+            st_, got = fetch(SITE + site_path(f))
+            _, fresh = fetch(SITE + site_path(f) + f'?v={int(time.time())}')
+        except Exception:
+            return False
+        if fresh != want:
+            continue  # served differently even uncached: cannot compare this file
+        usable += 1
+        if got != want:
+            return False
+    return True if usable else None
+
+
 def check_deploy(job, st):
     key = secret('RENDER_API_KEY')
     if time.time() - job.get('deployStart', 0) > DEPLOY_TIMEOUT:
         return fail(job, 'Online-Stellen dauert ungewöhnlich lange.')
+    if job.get('renderLive'):
+        # Render says live; wait until the CDN really serves the new version (it caches pages for a few minutes)
+        ok = cdn_has_commit(job)
+        waited = time.time() - job['renderLive']
+        if ok or (ok is None and waited > 60) or waited > 9 * 60:
+            set_status(job, 'live', 'Online, überall sichtbar' if ok else 'Online')
+            refresh_versions(st, force=True)
+            log('live', job['id'], 'cdn-verified' if ok else f'cdn-unverified after {int(waited)}s')
+            notify(f"Michi hat per Studio eine Änderung an diskret-tanzbar.de beauftragt, sie ist jetzt online: \"{job['title']}\". {job.get('summary', '')} Job: {job.get('dir')}")
+        return
     if not key:
         if time.time() - job['deployStart'] > 120:
-            set_status(job, 'live', 'Online')
+            job['renderLive'] = time.time()
         return
     try:
         deploys = http('GET', f'https://api.render.com/v1/services/{RENDER_SERVICE}/deploys?limit=10', headers={'Authorization': f'Bearer {key}'})
@@ -376,20 +423,13 @@ def check_deploy(job, st):
         d = d.get('deploy', d)
         if (d.get('commit') or {}).get('id') != job['commit']:
             continue
-        s = d.get('status')
-        if s == 'live':
-            try:
-                with urllib.request.urlopen(urllib.request.Request(f'{SITE}/?v={int(time.time())}', headers={'user-agent': 'tanzbar-studio-runner'}), timeout=20) as r:
-                    ok = r.status == 200
-            except Exception:
-                ok = False
-            if ok:
-                set_status(job, 'live', 'Online')
-                refresh_versions(st, force=True)
-                log('live', job['id'])
-                notify(f"Michi hat per Studio eine Änderung an diskret-tanzbar.de beauftragt, sie ist jetzt online: \"{job['title']}\". {job.get('summary', '')} Job: {job.get('dir')}")
-        elif s in ('build_failed', 'update_failed', 'canceled', 'deactivated', 'pre_deploy_failed'):
-            fail(job, 'Online-Stellen ist fehlgeschlagen.', s)
+        s_ = d.get('status')
+        if s_ == 'live':
+            job['renderLive'] = time.time()
+            progress(job, 'Fast da: die neue Version verteilt sich')
+            log('render live', job['id'])
+        elif s_ in ('build_failed', 'update_failed', 'canceled', 'deactivated', 'pre_deploy_failed'):
+            fail(job, 'Online-Stellen ist fehlgeschlagen.', s_)
         return
 
 
