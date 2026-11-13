@@ -474,10 +474,19 @@ def make_preview(pv):
         html = urllib.request.urlopen(urllib.request.Request(url, headers={'user-agent': 'tanzbar-studio-runner'}), timeout=20).read().decode('utf-8', 'replace')
         html = re.sub(r'<link rel="icon"[^>]*>', '', html)[:60000]
         user = f"AREA: {pv['area']}\nREQUESTED CHANGE: {pv['change'] or '(none, show the area as it is now)'}\nDEVICE: {pv['device']}\n\nHTML:\n{html}"
-        body = {'model': 'grok-4.7', 'messages': [{'role': 'system', 'content': PREVIEW_SYS}, {'role': 'user', 'content': user}],
-                'max_tokens': 1800, 'response_format': {'type': 'json_object'}}
-        d = http('POST', 'https://api.x.ai/v1/chat/completions', body, headers={'Authorization': f"Bearer {secret('XAI_API_KEY')}"}, timeout=90)
-        txt = d['choices'][0]['message']['content']
+        # grok-4.7 took up to 3 minutes here (13 Nov: two previews timed out); grok-4.5 answers in ~12 s with good patches
+        txt = ''
+        for model, tmo in (('grok-4.5', 70), ('grok-4.20-0309-non-reasoning', 40)):
+            body = {'model': model, 'messages': [{'role': 'system', 'content': PREVIEW_SYS}, {'role': 'user', 'content': user}],
+                    'max_tokens': 2500, 'response_format': {'type': 'json_object'}}
+            try:
+                d = http('POST', 'https://api.x.ai/v1/chat/completions', body, headers={'Authorization': f"Bearer {secret('XAI_API_KEY')}"}, timeout=tmo)
+                txt = d['choices'][0]['message']['content']
+                break
+            except Exception as e:
+                log('preview llm', model, repr(e)[:120])
+        if not txt:
+            raise RuntimeError('no patch from the model')
         plan = json.loads(re.search(r'\{.*\}', txt, re.S).group(0))
         job = {'url': url, 'selector': str(plan.get('selector') or ''), 'focus': str(plan.get('focus') or ''), 'js': str(plan.get('js') or '') if pv['change'] else '', 'device': pv['device']}
         chrome = f"{HOME}/.cache/ms-playwright/chromium_headless_shell-1248/chrome-headless-shell-linux64/chrome-headless-shell"
