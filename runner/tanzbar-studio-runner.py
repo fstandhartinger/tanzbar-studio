@@ -398,6 +398,7 @@ PREVIEW_SYS = """You prepare a visual preview of a website change for a non-tech
 You get the HTML of one page, the area to show, and optionally a requested change.
 Return ONLY a JSON object:
 {"selector": "CSS selector of the smallest element that contains the whole area (it must exist in the HTML; prefer section/header/main children with ids or classes)",
+ "focus": "CSS selector of the element the change adds or modifies, as it exists AFTER your js ran (give added elements a class so you can select them). Empty when nothing changes.",
  "js": "JavaScript statements that apply the requested change visually in the loaded page (DOM/text/style edits only, no network, no navigation, no alerts). Empty string when no change is requested or it cannot be shown.",
  "note": "German, du-form, 1-2 short sentences for Michi: what the images show (first image = jetzt, second = mit Änderung). If the change could not be shown exactly, say so honestly."}
 The page is in German. Keep the site's style when adding elements (reuse existing classes). Images: only existing ones under /assets/img/."""
@@ -415,7 +416,7 @@ def make_preview(pv):
         d = http('POST', 'https://api.x.ai/v1/chat/completions', body, headers={'Authorization': f"Bearer {secret('XAI_API_KEY')}"}, timeout=90)
         txt = d['choices'][0]['message']['content']
         plan = json.loads(re.search(r'\{.*\}', txt, re.S).group(0))
-        job = {'url': url, 'selector': str(plan.get('selector') or ''), 'js': str(plan.get('js') or '') if pv['change'] else '', 'device': pv['device']}
+        job = {'url': url, 'selector': str(plan.get('selector') or ''), 'focus': str(plan.get('focus') or ''), 'js': str(plan.get('js') or '') if pv['change'] else '', 'device': pv['device']}
         chrome = f"{HOME}/.cache/ms-playwright/chromium_headless_shell-1248/chrome-headless-shell-linux64/chrome-headless-shell"
         rc, out = sh(['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', 'lechonk',
                       f'cd ~/tanzbar-studio-preview && CHROME_PATH=$HOME/.cache/ms-playwright/chromium_headless_shell-1248/chrome-headless-shell-linux64/chrome-headless-shell timeout 120 node preview.mjs'],
