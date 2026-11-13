@@ -64,7 +64,7 @@ const S = {
   jobs: new Map(), pending: new Map(),
   material: new Map(), previews: new Map(), audios: new Map(),
   versions: [], lastVersions: null, lastUnderstanding: 0, lastJobAt: 0,
-  profile: { rev: 0, introDone: false, feed: [] },
+  profile: { rev: 0, introDone: false, voiceIntroDone: false, feed: [] },
   runnerSeenAt: 0, day: '', count: { sessions: 0, jobs: 0, chat: 0, previews: 0 },
   voice: null, ui: new Set(), chatBusy: false, chatQueue: [],
 };
@@ -341,7 +341,7 @@ async function runnerRoute(req, res, p) {
   if (p === '/api/runner/sync' && req.method === 'POST') {
     const b = await bodyJson(req, 4_000_000);
     if (b.profile && typeof b.profile.rev === 'number' && (S.profile.rev === 0 || b.profile.rev > S.profile.rev)) {
-      S.profile = { rev: b.profile.rev, introDone: Boolean(b.profile.introDone), feed: Array.isArray(b.profile.feed) ? b.profile.feed.slice(-160) : [] };
+      S.profile = { rev: b.profile.rev, introDone: Boolean(b.profile.introDone), voiceIntroDone: Boolean(b.profile.voiceIntroDone), feed: Array.isArray(b.profile.feed) ? b.profile.feed.slice(-160) : [] };
     }
     const known = new Set();
     for (const r of Array.isArray(b.jobs) ? b.jobs : []) {
@@ -501,7 +501,16 @@ server.on('upgrade', (req, socket, head) => {
   wss.handleUpgrade(req, socket, head, (ws) => (url.pathname === '/api/ui' ? startUi(ws) : startVoice(ws)));
 });
 
+const WELCOME = `Hey Michi, willkommen im Studio. So läuft's: Du sagst oder schreibst mir, was sich an deiner Seite ändern soll. Ich fasse es zusammen, und erst nach deinem **Okay** baut ein Agent es und stellt es online, meist in 10 bis 25 Minuten.
+- **Live sprechen:** einfach aufs Auge tippen
+- **Nachrichten:** unten schreiben oder übers Mikro eine Sprachnachricht schicken
+- **Material:** über das Plus Fotos, Texte oder Links dazulegen
+- **Vorschau:** ich zeig dir vorher, wie eine Änderung aussähe
+- **Zurück:** jede Version lässt sich wiederherstellen, sag einfach „zeig mir die Versionen“`;
+
 function startUi(ws) {
+  // first visit: a written welcome that explains everything once (later only on request)
+  if (!S.profile.introDone && !S.profile.feed.length && S.runnerSeenAt) { S.profile.introDone = true; addFeed({ kind: 'agent', via: 'chat', text: WELCOME }); }
   S.ui.add(ws);
   ws.send(JSON.stringify({ type: 'init', feed: S.profile.feed.slice(-80), jobs: jobList(), material: materialList(), runnerOnline: runnerOnline(), voiceActive: Boolean(S.voice?.ready), typing: S.chatBusy }));
   const ping = setInterval(() => ws.readyState === WebSocket.OPEN && ws.ping(), 25_000);
@@ -571,8 +580,8 @@ function startVoice(client) {
         broadcast({ type: 'voice', active: true });
         const hist = feedAsText(12);
         const ctx = contextNote();
-        const intro = S.profile.introDone ? '' : ` ${INTRO}`;
-        if (!S.profile.introDone) { S.profile.introDone = true; touch(); }
+        const intro = S.profile.voiceIntroDone ? '' : ` ${INTRO} (Im Verlauf steht schon eine schriftliche Erklärung; sag es trotzdem kurz mündlich, weil es sein erstes Live-Gespräch ist.)`;
+        if (!S.profile.voiceIntroDone) { S.profile.voiceIntroDone = true; S.profile.introDone = true; touch(); }
         session.note(`[System, nicht von Michi: Michi hat gerade das Live-Gespräch gestartet.${hist ? ` Bisheriger Verlauf (Chat und frühere Gespräche):\n${hist}\n` : ''}${ctx ? ` ${ctx}` : ''} Begrüße ihn in einem kurzen, coolen Satz${hist ? ', knüpf wenn sinnvoll an den Verlauf an' : ''} und frag, was sich an seiner Seite ändern soll.${intro}]`, true);
         break;
       }
